@@ -5,15 +5,30 @@ const { Server } = require("socket.io");
 
 const app = express();
 
-app.use(cors());
+// =====================================
+// CORS CONFIGURATION
+// =====================================
+
+const corsOptions = {
+  origin: [
+    "https://random-video-chat-lac.vercel.app",
+    "http://localhost:5173",
+  ],
+  methods: ["GET", "POST"],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.use(express.json());
 
 const server = http.createServer(app);
 
+// =====================================
+// SOCKET.IO
+// =====================================
+
 const io = new Server(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
-    methods: ["GET", "POST"],
-  },
+  cors: corsOptions,
 });
 
 // =====================================
@@ -45,8 +60,7 @@ const reports = [];
 // =====================================
 
 const removeFromWaiting = (socketId) => {
-  const index =
-    waitingUsers.indexOf(socketId);
+  const index = waitingUsers.indexOf(socketId);
 
   if (index !== -1) {
     waitingUsers.splice(index, 1);
@@ -67,22 +81,16 @@ const sendWaitingCount = () => {
 // CHECK RECENT PARTNER
 // =====================================
 
-const wasRecentlyConnected = (
-  userId,
-  strangerId
-) => {
-  const recent =
-    recentPartners.get(userId);
+const wasRecentlyConnected = (userId, strangerId) => {
+  const recent = recentPartners.get(userId);
 
   if (!recent) {
     return false;
   }
 
-  const TWO_MINUTES =
-    2 * 60 * 1000;
+  const TWO_MINUTES = 2 * 60 * 1000;
 
-  const timePassed =
-    Date.now() - recent.time;
+  const timePassed = Date.now() - recent.time;
 
   if (timePassed > TWO_MINUTES) {
     recentPartners.delete(userId);
@@ -90,19 +98,14 @@ const wasRecentlyConnected = (
     return false;
   }
 
-  return (
-    recent.partnerId === strangerId
-  );
+  return recent.partnerId === strangerId;
 };
 
 // =====================================
 // SAVE RECENT PARTNER
 // =====================================
 
-const saveRecentPartner = (
-  userId,
-  strangerId
-) => {
+const saveRecentPartner = (userId, strangerId) => {
   recentPartners.set(userId, {
     partnerId: strangerId,
     time: Date.now(),
@@ -114,17 +117,14 @@ const saveRecentPartner = (
 // =====================================
 
 const findStranger = (socket) => {
-  const currentUser =
-    users.get(socket.id);
+  const currentUser = users.get(socket.id);
 
   if (!currentUser) {
     return;
   }
 
   // Don't add same user twice
-  if (
-    waitingUsers.includes(socket.id)
-  ) {
+  if (waitingUsers.includes(socket.id)) {
     socket.emit("waiting");
 
     sendWaitingCount();
@@ -133,13 +133,8 @@ const findStranger = (socket) => {
   }
 
   // Remove disconnected users
-  for (
-    let i = waitingUsers.length - 1;
-    i >= 0;
-    i--
-  ) {
-    const waitingId =
-      waitingUsers[i];
+  for (let i = waitingUsers.length - 1; i >= 0; i--) {
+    const waitingId = waitingUsers[i];
 
     if (!users.has(waitingId)) {
       waitingUsers.splice(i, 1);
@@ -152,43 +147,27 @@ const findStranger = (socket) => {
 
   let strangerId = null;
 
-  for (
-    let i = 0;
-    i < waitingUsers.length;
-    i++
-  ) {
-    const candidateId =
-      waitingUsers[i];
+  for (let i = 0; i < waitingUsers.length; i++) {
+    const candidateId = waitingUsers[i];
 
-    const candidate =
-      users.get(candidateId);
+    const candidate = users.get(candidateId);
 
     if (!candidate) {
       continue;
     }
 
     // Don't match yourself
-    if (
-      candidateId === socket.id
-    ) {
+    if (candidateId === socket.id) {
       continue;
     }
 
     // Current user blocked candidate
-    if (
-      currentUser.blockedUsers.includes(
-        candidateId
-      )
-    ) {
+    if (currentUser.blockedUsers.includes(candidateId)) {
       continue;
     }
 
     // Candidate blocked current user
-    if (
-      candidate.blockedUsers.includes(
-        socket.id
-      )
-    ) {
+    if (candidate.blockedUsers.includes(socket.id)) {
       continue;
     }
 
@@ -246,8 +225,7 @@ const findStranger = (socket) => {
   // GET STRANGER
   // =====================================
 
-  const stranger =
-    users.get(strangerId);
+  const stranger = users.get(strangerId);
 
   if (!stranger) {
     findStranger(socket);
@@ -259,11 +237,9 @@ const findStranger = (socket) => {
   // SAVE CONNECTION
   // =====================================
 
-  currentUser.strangerId =
-    strangerId;
+  currentUser.strangerId = strangerId;
 
-  stranger.strangerId =
-    socket.id;
+  stranger.strangerId = socket.id;
 
   console.log(
     "Matched:",
@@ -506,13 +482,11 @@ io.on("connection", (socket) => {
         currentUser.strangerId ===
         strangerId
       ) {
-        currentUser.strangerId =
-          null;
+        currentUser.strangerId = null;
       }
 
       if (stranger) {
-        stranger.strangerId =
-          null;
+        stranger.strangerId = null;
       }
 
       io.to(strangerId).emit(
@@ -551,8 +525,7 @@ io.on("connection", (socket) => {
     const oldStrangerId =
       currentUser.strangerId;
 
-    currentUser.strangerId =
-      null;
+    currentUser.strangerId = null;
 
     // Remember old stranger
     if (oldStrangerId) {
@@ -570,8 +543,7 @@ io.on("connection", (socket) => {
         users.get(oldStrangerId);
 
       if (oldStranger) {
-        oldStranger.strangerId =
-          null;
+        oldStranger.strangerId = null;
       }
 
       io.to(oldStrangerId).emit(
@@ -625,8 +597,7 @@ io.on("connection", (socket) => {
         users.get(strangerId);
 
       if (stranger) {
-        stranger.strangerId =
-          null;
+        stranger.strangerId = null;
       }
 
       saveRecentPartner(
@@ -664,6 +635,7 @@ app.get("/", (req, res) => {
 // =====================================
 
 const PORT = process.env.PORT || 5000;
+
 server.listen(PORT, () => {
   console.log(
     `Server running on port ${PORT}`
