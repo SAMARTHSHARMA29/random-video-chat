@@ -172,21 +172,11 @@ const findStranger = (socket) => {
     }
 
     // Don't immediately rematch
-    if (
-      wasRecentlyConnected(
-        socket.id,
-        candidateId
-      )
-    ) {
+    if (wasRecentlyConnected(socket.id, candidateId)) {
       continue;
     }
 
-    if (
-      wasRecentlyConnected(
-        candidateId,
-        socket.id
-      )
-    ) {
+    if (wasRecentlyConnected(candidateId, socket.id)) {
       continue;
     }
 
@@ -208,15 +198,9 @@ const findStranger = (socket) => {
 
     sendWaitingCount();
 
-    console.log(
-      "User waiting:",
-      socket.id
-    );
+    console.log("User waiting:", socket.id);
 
-    console.log(
-      "Waiting users:",
-      waitingUsers
-    );
+    console.log("Waiting users:", waitingUsers);
 
     return;
   }
@@ -241,12 +225,7 @@ const findStranger = (socket) => {
 
   stranger.strangerId = socket.id;
 
-  console.log(
-    "Matched:",
-    socket.id,
-    "<->",
-    strangerId
-  );
+  console.log("Matched:", socket.id, "<->", strangerId);
 
   // =====================================
   // MATCHED EVENT
@@ -257,13 +236,10 @@ const findStranger = (socket) => {
     initiator: true,
   });
 
-  io.to(strangerId).emit(
-    "matched",
-    {
-      strangerId: socket.id,
-      initiator: false,
-    }
-  );
+  io.to(strangerId).emit("matched", {
+    strangerId: socket.id,
+    initiator: false,
+  });
 
   // Update waiting count
   sendWaitingCount();
@@ -274,10 +250,7 @@ const findStranger = (socket) => {
 // =====================================
 
 io.on("connection", (socket) => {
-  console.log(
-    "User connected:",
-    socket.id
-  );
+  console.log("User connected:", socket.id);
 
   users.set(socket.id, {
     strangerId: null,
@@ -293,280 +266,191 @@ io.on("connection", (socket) => {
   // FIND STRANGER
   // =====================================
 
-  socket.on(
-    "find-stranger",
-    () => {
-      console.log(
-        "Finding stranger:",
-        socket.id
-      );
+  socket.on("find-stranger", () => {
+    console.log("Finding stranger:", socket.id);
 
-      findStranger(socket);
-    }
-  );
+    findStranger(socket);
+  });
 
   // =====================================
   // WEBRTC OFFER
+  // NOTE: Frontend sends { to, offer } — we read "to" as the target
   // =====================================
 
-  socket.on(
-    "offer",
-    ({ strangerId, offer }) => {
-      if (!strangerId) return;
+  socket.on("offer", ({ to, offer }) => {
+    if (!to) return;
 
-      io.to(strangerId).emit(
-        "offer",
-        {
-          offer,
-          strangerId: socket.id,
-        }
-      );
-    }
-  );
+    io.to(to).emit("offer", {
+      from: socket.id,
+      offer,
+    });
+  });
 
   // =====================================
   // WEBRTC ANSWER
+  // NOTE: Frontend sends { to, answer }
   // =====================================
 
-  socket.on(
-    "answer",
-    ({ strangerId, answer }) => {
-      if (!strangerId) return;
+  socket.on("answer", ({ to, answer }) => {
+    if (!to) return;
 
-      io.to(strangerId).emit(
-        "answer",
-        {
-          answer,
-          strangerId: socket.id,
-        }
-      );
-    }
-  );
+    io.to(to).emit("answer", {
+      from: socket.id,
+      answer,
+    });
+  });
 
   // =====================================
   // ICE CANDIDATE
+  // NOTE: Frontend sends { to, candidate }
   // =====================================
 
-  socket.on(
-    "ice-candidate",
-    ({ strangerId, candidate }) => {
-      if (!strangerId) return;
+  socket.on("ice-candidate", ({ to, candidate }) => {
+    if (!to) return;
 
-      io.to(strangerId).emit(
-        "ice-candidate",
-        {
-          candidate,
-          strangerId: socket.id,
-        }
-      );
-    }
-  );
+    io.to(to).emit("ice-candidate", {
+      from: socket.id,
+      candidate,
+    });
+  });
 
   // =====================================
   // TEXT CHAT
+  // NOTE: Frontend sends { to, message }
   // =====================================
 
-  socket.on(
-    "send-message",
-    ({ strangerId, message }) => {
-      if (!strangerId) return;
+  socket.on("send-message", ({ to, message }) => {
+    if (!to) return;
 
-      if (
-        !message ||
-        !message.trim()
-      ) {
-        return;
-      }
-
-      io.to(strangerId).emit(
-        "receive-message",
-        {
-          message: message,
-        }
-      );
+    if (!message || !message.trim()) {
+      return;
     }
-  );
+
+    io.to(to).emit("receive-message", {
+      message: message,
+    });
+  });
 
   // =====================================
   // TYPING STARTED
+  // NOTE: Frontend sends { to }
   // =====================================
 
-  socket.on(
-    "typing",
-    ({ strangerId }) => {
-      if (!strangerId) return;
+  socket.on("typing", ({ to }) => {
+    if (!to) return;
 
-      io.to(strangerId).emit(
-        "stranger-typing"
-      );
-    }
-  );
+    io.to(to).emit("stranger-typing");
+  });
 
   // =====================================
   // TYPING STOPPED
+  // NOTE: Frontend sends { to }
   // =====================================
 
-  socket.on(
-    "stop-typing",
-    ({ strangerId }) => {
-      if (!strangerId) return;
+  socket.on("stop-typing", ({ to }) => {
+    if (!to) return;
 
-      io.to(strangerId).emit(
-        "stranger-stop-typing"
-      );
-    }
-  );
+    io.to(to).emit("stranger-stop-typing");
+  });
 
   // =====================================
   // REPORT STRANGER
+  // NOTE: Frontend sends { strangerId, reason }
   // =====================================
 
-  socket.on(
-    "report-user",
-    ({ strangerId, reason }) => {
-      if (
-        !strangerId ||
-        !reason
-      ) {
-        return;
-      }
-
-      const report = {
-        reporter: socket.id,
-        reportedUser: strangerId,
-        reason: reason,
-        time: new Date(),
-      };
-
-      reports.push(report);
-
-      console.log(
-        "REPORT RECEIVED:",
-        report
-      );
-
-      socket.emit(
-        "report-success"
-      );
+  socket.on("report-user", ({ strangerId, reason }) => {
+    if (!strangerId || !reason) {
+      return;
     }
-  );
+
+    const report = {
+      reporter: socket.id,
+      reportedUser: strangerId,
+      reason: reason,
+      time: new Date(),
+    };
+
+    reports.push(report);
+
+    console.log("REPORT RECEIVED:", report);
+
+    socket.emit("report-success");
+  });
 
   // =====================================
   // BLOCK STRANGER
+  // NOTE: Frontend sends { strangerId }
   // =====================================
 
-  socket.on(
-    "block-user",
-    ({ strangerId }) => {
-      if (!strangerId) return;
+  socket.on("block-user", ({ strangerId }) => {
+    if (!strangerId) return;
 
-      const currentUser =
-        users.get(socket.id);
+    const currentUser = users.get(socket.id);
 
-      const stranger =
-        users.get(strangerId);
+    const stranger = users.get(strangerId);
 
-      if (!currentUser) return;
+    if (!currentUser) return;
 
-      if (
-        !currentUser.blockedUsers.includes(
-          strangerId
-        )
-      ) {
-        currentUser.blockedUsers.push(
-          strangerId
-        );
-      }
-
-      if (
-        currentUser.strangerId ===
-        strangerId
-      ) {
-        currentUser.strangerId = null;
-      }
-
-      if (stranger) {
-        stranger.strangerId = null;
-      }
-
-      io.to(strangerId).emit(
-        "stranger-blocked"
-      );
-
-      socket.emit(
-        "block-success"
-      );
-
-      console.log(
-        socket.id,
-        "blocked",
-        strangerId
-      );
+    if (!currentUser.blockedUsers.includes(strangerId)) {
+      currentUser.blockedUsers.push(strangerId);
     }
-  );
+
+    if (currentUser.strangerId === strangerId) {
+      currentUser.strangerId = null;
+    }
+
+    if (stranger) {
+      stranger.strangerId = null;
+    }
+
+    io.to(strangerId).emit("stranger-blocked");
+
+    socket.emit("block-success");
+
+    console.log(socket.id, "blocked", strangerId);
+  });
 
   // =====================================
   // NEXT
   // =====================================
 
   socket.on("next", () => {
-    console.log(
-      "NEXT clicked:",
-      socket.id
-    );
+    console.log("NEXT clicked:", socket.id);
 
-    const currentUser =
-      users.get(socket.id);
+    const currentUser = users.get(socket.id);
 
     if (!currentUser) {
       return;
     }
 
-    const oldStrangerId =
-      currentUser.strangerId;
+    const oldStrangerId = currentUser.strangerId;
 
     currentUser.strangerId = null;
 
     // Remember old stranger
     if (oldStrangerId) {
-      saveRecentPartner(
-        socket.id,
-        oldStrangerId
-      );
+      saveRecentPartner(socket.id, oldStrangerId);
 
-      saveRecentPartner(
-        oldStrangerId,
-        socket.id
-      );
+      saveRecentPartner(oldStrangerId, socket.id);
 
-      const oldStranger =
-        users.get(oldStrangerId);
+      const oldStranger = users.get(oldStrangerId);
 
       if (oldStranger) {
         oldStranger.strangerId = null;
       }
 
-      io.to(oldStrangerId).emit(
-        "stranger-left"
-      );
+      io.to(oldStrangerId).emit("stranger-left");
     }
 
-    removeFromWaiting(
-      socket.id
-    );
+    removeFromWaiting(socket.id);
 
-    waitingUsers.push(
-      socket.id
-    );
+    waitingUsers.push(socket.id);
 
     socket.emit("waiting");
 
     sendWaitingCount();
 
-    console.log(
-      "User waiting after Next:",
-      socket.id
-    );
+    console.log("User waiting after Next:", socket.id);
   });
 
   // =====================================
@@ -574,45 +458,27 @@ io.on("connection", (socket) => {
   // =====================================
 
   socket.on("disconnect", () => {
-    console.log(
-      "User disconnected:",
-      socket.id
-    );
+    console.log("User disconnected:", socket.id);
 
-    removeFromWaiting(
-      socket.id
-    );
+    removeFromWaiting(socket.id);
 
-    const currentUser =
-      users.get(socket.id);
+    const currentUser = users.get(socket.id);
 
-    if (
-      currentUser &&
-      currentUser.strangerId
-    ) {
-      const strangerId =
-        currentUser.strangerId;
+    if (currentUser && currentUser.strangerId) {
+      const strangerId = currentUser.strangerId;
 
-      const stranger =
-        users.get(strangerId);
+      const stranger = users.get(strangerId);
 
       if (stranger) {
         stranger.strangerId = null;
       }
 
-      saveRecentPartner(
-        strangerId,
-        socket.id
-      );
+      saveRecentPartner(strangerId, socket.id);
 
-      io.to(strangerId).emit(
-        "stranger-left"
-      );
+      io.to(strangerId).emit("stranger-left");
     }
 
-    recentPartners.delete(
-      socket.id
-    );
+    recentPartners.delete(socket.id);
 
     users.delete(socket.id);
 
@@ -625,9 +491,7 @@ io.on("connection", (socket) => {
 // =====================================
 
 app.get("/", (req, res) => {
-  res.send(
-    "Random Video Chat Server is running"
-  );
+  res.send("Random Video Chat Server is running");
 });
 
 // =====================================
@@ -637,7 +501,5 @@ app.get("/", (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(
-    `Server running on port ${PORT}`
-  );
+  console.log(`Server running on port ${PORT}`);
 });
